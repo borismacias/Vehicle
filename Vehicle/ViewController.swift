@@ -18,6 +18,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     let motionManager = CMMotionManager()
     var vehicle = SCNPhysicsVehicle()
     var orientation = CGFloat()
+    var touched:Bool = false
+    var accelerationValues = [UIAccelerationValue(0), UIAccelerationValue(0)]
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -68,8 +70,17 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
     
     func renderer(_ renderer: SCNSceneRenderer, didSimulatePhysicsAtTime time: TimeInterval) {
+        var engineForce:CGFloat = 0
         self.vehicle.setSteeringAngle(self.orientation, forWheelAt: 0)
         self.vehicle.setSteeringAngle(self.orientation, forWheelAt: 1)
+        if self.touched {
+            engineForce = -50
+        } else {
+            engineForce = 0
+        }
+        
+        self.vehicle.applyEngineForce(engineForce, forWheelAt: 2)
+        self.vehicle.applyEngineForce(engineForce, forWheelAt: 3)
     }
     
     @IBAction func addCar(_ sender: Any) {
@@ -91,6 +102,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let v_rearRightWheel = SCNPhysicsVehicleWheel(node: rearRightWheel)
         
         let body = SCNPhysicsBody(type: .dynamic, shape: SCNPhysicsShape(node: chassis, options: [ SCNPhysicsShape.Option.keepAsCompound: true]))
+        body.mass = 5
         chassis.physicsBody = body
         chassis.position = currentPositionOfCamera
         self.vehicle = SCNPhysicsVehicle(chassisBody: chassis.physicsBody!, wheels: [v_frontLeftWheel, v_frontRightWheel, v_rearLeftWheel, v_rearRightWheel])
@@ -112,10 +124,25 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
     
     func accelerometerDidChange(acceleration: CMAcceleration) -> Void {
-        orientation = CGFloat(acceleration.y)
-        if acceleration.x < 0 {
+        accelerationValues[1] = filtered(previousAcceleration: accelerationValues[1], UpdatedAcceleration: acceleration.y)
+        accelerationValues[0] = filtered(previousAcceleration: accelerationValues[0], UpdatedAcceleration: acceleration.x)
+        orientation = CGFloat(accelerationValues[1])
+        if accelerationValues[0] < 0 {
             self.orientation = -orientation
         }
+    }
+    
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        self.touched = true
+    }
+    
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        self.touched = false
+    }
+    
+    func filtered(previousAcceleration: Double, UpdatedAcceleration: Double) -> Double {
+        let kfilteringFactor = 0.5
+        return UpdatedAcceleration * kfilteringFactor + previousAcceleration * (1-kfilteringFactor)
     }
     
 }
